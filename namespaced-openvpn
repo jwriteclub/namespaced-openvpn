@@ -74,6 +74,10 @@ def setup_namespace(namespace):
         subprocess.check_call(_enter_namespace_cmd('') + [IP_CMD, 'netns', 'add', namespace])
     subprocess.check_call(_enter_namespace_cmd(namespace) + [IP_CMD, 'link', 'set', 'lo', 'up'])
 
+def teardown_namespace(namespace):
+    if os.path.exists(os.path.join('/var/run/netns', namespace)):
+        subprocess.check_call(_enter_namespace_cmd('') + [IP_CMD, 'netns', 'del', namespace])
+    return 0
 
 def parse_dhcp_opts(env):
     """Parse DNS servers pushed by the server as DHCP options from the env."""
@@ -296,14 +300,16 @@ def main():
     script_type = os.getenv('script_type')
     if script_type == 'route-up':
         return route_up(sys.argv[1:])
-
+    if script_type == 'down':
+        return teardown_namespace(sys.argv[1])
+    
     try:
         args, openvpn_args, preexisting_routeup = parse_validate_args(sys.argv[1:])
     except InvalidArgs:
         return 1
-
+    
     setup_namespace(args.namespace)
-
+    
     execv_args = ['openvpn']
     execv_args += openvpn_args
     # OK, don't bother assigning an IP to the tun, or creating routes;
@@ -317,7 +323,12 @@ def main():
         '--route-up',
         '%s %s %s %s' % (__file__, namespace, args.dns, preexisting_routeup)
     ]
-
+    # pass our own path as the down, with some extra data
+    execv_args += [
+        '--down',
+        '%s %s' % (__file__, namespace)
+    ]
+    
     os.execv(OPENVPN_CMD, execv_args)
 
 
