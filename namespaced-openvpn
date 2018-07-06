@@ -35,6 +35,7 @@ IP_CMD = '/sbin/ip'
 NSENTER_CMD = '/usr/bin/nsenter'
 MOUNT_CMD = '/bin/mount'
 UMOUNT_CMD = '/bin/umount'
+RM_CMD = '/bin/rm'
 
 # Python thinks this is valid b64 for the empty string,
 # but this may not be universal
@@ -75,8 +76,13 @@ def setup_namespace(namespace):
     subprocess.check_call(_enter_namespace_cmd(namespace) + [IP_CMD, 'link', 'set', 'lo', 'up'])
 
 def teardown_namespace(namespace):
+    """Clean up the netns """
     if os.path.exists(os.path.join('/var/run/netns', namespace)):
         subprocess.check_call(_enter_namespace_cmd('') + [IP_CMD, 'netns', 'del', namespace])
+    # Also clean up the resolv.conf from the namespace
+    if os.path.exists(os.path.join('/etc/netns', namespace)):
+        os.remove(os.path.join(os.path.join('/etc/netns', namespace), "resolv.conf"))
+        os.rmdir(os.path.join('/etc/netns', namespace))
     return 0
 
 def parse_dhcp_opts(env):
